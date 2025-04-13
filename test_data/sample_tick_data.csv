@@ -1,0 +1,28 @@
+﻿import pandas as pd
+import numpy as np
+
+# Create sample tick data
+dates = pd.date_range(start='2023-01-01', periods=1000, freq='100ms')
+data = {
+    'timestamp': dates,
+    'bid': 1.1234 + np.random.normal(0, 0.0001, size=1000),
+    'ask': 1.1236 + np.random.normal(0, 0.0001, size=1000),
+    'bid_size': np.random.randint(800000, 1200000, size=1000),
+    'ask_size': np.random.randint(800000, 1200000, size=1000)
+}
+
+df = pd.DataFrame(data)
+df.to_csv('test_data/sample_tick_data.csv', index=False)
+
+# Create sample labeled regime data
+regime_data = {
+    'date': pd.date_range(start='2023-01-01', periods=100, freq='D'),
+    'close': np.random.normal(100, 5, size=100).cumsum() + 1000,
+    'volume': np.random.randint(1000000, 5000000, size=100),
+    'regime': np.random.choice(['trending', 'mean_reverting', 'volatile', 'calm'], size=100)
+}
+
+regime_df = pd.DataFrame(regime_data)
+regime_df.to_csv('test_data/labelled_regime_data.csv', index=False)
+
+print("Sample data generated successfully in the test_data directory.")
