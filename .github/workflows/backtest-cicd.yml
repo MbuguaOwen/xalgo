@@ -13,24 +13,103 @@ on:
     branches:
       - main
 
+env:
+  PYTHON_VERSION: '3.11'
+  BENCHMARK_THRESHOLD_US: 100  # μs latency threshold for router
+  ARTIFACTS_PATH: benchmark_reports
+
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  build-and-test:
+    runs-on: ubuntu-22.04
 
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v2
+      - name: Checkout Code
+        uses: actions/checkout@v3
 
-    - name: Setup Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: '3.x'
+      - name: Setup Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
 
-    - name: Install Dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
+      - name: Setup C++ Toolchain
+        run: sudo apt-get update && sudo apt-get install -y build-essential cmake
 
-    - name: Run Tests
-      run: |
-        pytest tests/
+      - name: Install Python Dependencies
+        run: pip install -r requirements.txt
+
+      - name: Build C++ Core
+        run: |
+          mkdir -p build
+          cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release
+          make -j$(nproc)
+
+      - name: Run Unit + Integration Tests
+        run: pytest tests/unit tests/integration --tb=short -v
+
+      - name: Benchmark Performance (Router)
+        run: pytest tests/performance/test_performance.py --tb=short --benchmark-save=router
+
+      - name: Evaluate Latency Threshold
+        run: |
+          mean_latency=$(pytest tests/performance/test_performance.py \
+                          --benchmark-only \
+                          --benchmark-save-data \
+                          | grep "Mean latency" | grep -oE "[0-9]+\.[0-9]+")
+          if (( $(echo "$mean_latency > $BENCHMARK_THRESHOLD_US" | bc -l) )); then
+            echo "⚠️ Latency ($mean_latency μs) exceeds sub-100μs constraint!"
+            exit 1
+          fi
+
+      - name: Upload Benchmark Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACTS_PATH }}
+          path: ${{ env.ARTIFACTS_PATH }}
+
+  canary-deployment:
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-22.04
+    environment: production
+
+    steps:
+      - name: Pull Canary Docker Image
+        run: docker build -t quant-backtester:canary .
+
+      - name: Canary Run Simulation
+        run: |
+          docker run --rm \
+            -v $(pwd)/test_data:/app/data \
+            quant-backtester:canary /app/build/QuantTickEngine
+
+      - name: Manual Approval
+        uses: hmarr/auto-approve-action@v3
+        if: success()
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  alert-on-failure:
+    needs: build-and-test
+    if: failure()
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Slack Alert
+        uses: 8398a7/action-slack@v3
+        with:
+          status: failure
+          fields: repo,message,commit,author,eventName,ref,workflow,job,took
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  rollback-if-latency-violation:
+    needs: build-and-test
+    if: failure()
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Rollback Commit
+        run: |
+          git checkout main
+          git revert HEAD --no-edit
+          git push origin main || echo "⚠️ Manual intervention required"
