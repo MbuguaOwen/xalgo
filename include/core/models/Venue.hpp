@@ -1,17 +1,16 @@
-// Venue.hpp
 #pragma once
 
 #include <string>
 #include <atomic>
-#include <mutex>
 
-class Venue {
+class Venue final {
 public:
-    explicit Venue(const std::string& name) : name_(name), isActive_(true) {}
+    inline explicit Venue(const std::string& name) noexcept
+        : name_(name), isActive_(true) {}
 
-    const std::string& getName() const noexcept { return name_; }
-    bool isActive() const noexcept { return isActive_.load(std::memory_order_relaxed); }
-    void setActive(bool active) noexcept { isActive_.store(active, std::memory_order_relaxed); }
+    [[nodiscard]] inline const std::string& getName() const noexcept { return name_; }
+    [[nodiscard]] inline bool isActive() const noexcept { return isActive_.load(std::memory_order_relaxed); }
+    inline void setActive(bool active) noexcept { isActive_.store(active, std::memory_order_relaxed); }
 
 private:
     const std::string name_;

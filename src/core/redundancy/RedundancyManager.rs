@@ -1,74 +1,119 @@
-use std::sync::{Arc, Mutex};
-use std::thread;
-use std::time::Duration;
-use std::collections::HashMap;
+// RedundancyManager.rs
 
-#[derive(Clone, Debug)]
-struct Component {
-    name: String,
-    healthy: Arc<Mutex<bool>>,
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
+use std::thread;
+use std::time::{Duration, Instant};
+
+/// Represents a system component with a name and health status.
+pub struct Component {
+    name: &'static str,
+    healthy: AtomicBool,
 }
 
 impl Component {
-    fn new(name: &str) -> Self {
-        Component {
-            name: name.to_string(),
-            healthy: Arc::new(Mutex::new(true)),
+    /// Creates a new component.
+    pub fn new(name: &'static str, healthy: bool) -> Self {
+        Self {
+            name,
+            healthy: AtomicBool::new(healthy),
         }
     }
 
-    fn perform_health_check(&self) -> bool {
-        // Simulate health check logic
-        let is_healthy = rand::random::<f32>() > 0.1; // 90% uptime
-        let mut health = self.healthy.lock().unwrap();
-        *health = is_healthy;
-        println!("Health check for {}: {}", self.name, is_healthy);
-        is_healthy
+    /// Performs a health check.
+    /// In production this would be replaced by real monitoring logic.
+    pub fn check_health(&self) -> bool {
+        // Ordering::Acquire ensures subsequent reads see the update.
+        self.healthy.load(Ordering::Acquire)
     }
 
-    fn failover(&self) {
-        println!("Failover triggered for component: {}", self.name);
+    /// Sets the health state.
+    pub fn set_health(&self, state: bool) {
+        // Ordering::Release ensures that updates are visible to any acquiring loads.
+        self.healthy.store(state, Ordering::Release);
+    }
+
+    /// Returns the component's name.
+    pub fn name(&self) -> &'static str {
+        self.name
     }
 }
 
+/// Manages redundancy by monitoring primary and switching to backup if needed.
 pub struct RedundancyManager {
-    components: HashMap<String, Component>,
+    primary: Arc<Component>,
+    backup: Arc<Component>,
+    /// The interval between health checks.
+    check_interval: Duration,
 }
 
 impl RedundancyManager {
-    pub fn new() -> Self {
-        RedundancyManager {
-            components: HashMap::new(),
+    /// Creates a new redundancy manager.
+    pub fn new(primary: Arc<Component>, backup: Arc<Component>, check_interval: Duration) -> Self {
+        Self {
+            primary,
+            backup,
+            check_interval,
         }
     }
 
-    pub fn register_component(&mut self, name: &str) {
-        let component = Component::new(name);
-        self.components.insert(name.to_string(), component);
-    }
-
-    pub fn start_monitoring(&self) {
-        let components = self.components.clone();
-        thread::spawn(move || loop {
-            for (name, comp) in components.iter() {
-                if !comp.perform_health_check() {
-                    comp.failover();
+    /// Monitors the primary component. If it becomes unhealthy, initiates failover.
+    /// Returns an error if both components are unhealthy.
+    pub fn monitor(&self) -> Result<(), &'static str> {
+        let start_time = Instant::now();
+        loop {
+            // Check primary health.
+            if self.primary.check_health() {
+                // In a high-frequency system, the sleep duration may be very short.
+                thread::sleep(self.check_interval);
+            } else {
+                println!(
+                    "[{:.3?}] Primary '{}' is unhealthy. Initiating failover to backup '{}'.",
+                    start_time.elapsed(),
+                    self.primary.name(),
+                    self.backup.name()
+                );
+                // Attempt to activate the backup.
+                self.backup.set_health(true);
+                // Confirm the backup is healthy (retry logic could be added here).
+                if self.backup.check_health() {
+                    println!("[{:.3?}] Failover successful. '{}' is now active.", start_time.elapsed(), self.backup.name());
+                    return Ok(());
+                } else {
+                    return Err("Failover failed: Backup component is unhealthy.");
                 }
             }
-            thread::sleep(Duration::from_secs(1));
-        });
+        }
     }
 }
 
-fn main() {
-    let mut manager = RedundancyManager::new();
-    manager.register_component("Router");
-    manager.register_component("Executor");
-    manager.register_component("Simulator");
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Create components.
+    let primary = Arc::new(Component::new("Primary", true));
+    let backup = Arc::new(Component::new("Backup", true));
 
-    manager.start_monitoring();
+    // Create a redundancy manager with a 50 microseconds check interval.
+    // Adjust interval for your real-time requirements.
+    let manager = RedundancyManager::new(Arc::clone(&primary), Arc::clone(&backup), Duration::from_micros(50));
 
-    loop {
-        thread::sleep(Duration::from_secs(60));
+    // Simulate external health degradation of the primary component.
+    {
+        let primary_clone = Arc::clone(&primary);
+        thread::spawn(move || {
+            // Wait for 1 second before simulating a failure.
+            thread::sleep(Duration::from_secs(1));
+            primary_clone.set_health(false);
+            println!("Primary component has been set to unhealthy.");
+        });
     }
+
+    // Start monitoring for failover.
+    match manager.monitor() {
+        Ok(_) => println!("System operating with active backup component."),
+        Err(e) => eprintln!("Critical failure: {}", e),
+    }
+
+    Ok(())
 }

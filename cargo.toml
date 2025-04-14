@@ -1,26 +1,24 @@
-### Rust Component Build Configuration: Cargo.toml
-
 [package]
 name = "triangular_arbitrage_rust"
 version = "0.1.0"
 edition = "2021"
-authors = ["Owen Mbugua <owen@example.com>"]
+authors = ["Owen Mbugua <owenmbuguadg@gmail.com>"]
 description = "Ultra-low-latency components for triangular arbitrage"
 license = "MIT"
 
 [dependencies]
-crossbeam = "0.8"
-tokio = { version = "1.37", features = ["full"] }
-serde = { version = "1.0", features = ["derive"] }
+crossbeam = "0.8"           # Lock-free concurrency data structures.
+tokio = { version = "1.37", features = ["full"] }  # Async runtime for non-blocking operations.
+serde = { version = "1.0", features = ["derive"] }   # Serialization/deserialization.
 serde_json = "1.0"
 log = "0.4"
 env_logger = "0.10"
-rayon = "1.10"
+rayon = "1.10"              # Data-parallelism.
 anyhow = "1.0"
 
 [profile.release]
-lto = true
-codegen-units = 1
-opt-level = "z"
-panic = "abort"
-incremental = false
+lto = true                  # Enable Link Time Optimization.
+codegen-units = 1           # Fewer codegen units for better inlining.
+opt-level = "3"             # Maximum optimization for speed.
+panic = "abort"             # Abort on panic for reduced overhead.
+incremental = false         # Disable to ensure optimal release builds.

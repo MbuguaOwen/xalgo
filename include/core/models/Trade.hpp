@@ -1,13 +1,13 @@
-// Trade.hpp
 #pragma once
 
 #include "Order.hpp"
 #include "Venue.hpp"
 #include <chrono>
+#include <string>
 
-class Trade {
+class Trade final {
 public:
-    Trade(const Order& order, const Venue& venue, double fillPrice, double fillQuantity)
+    inline Trade(const Order& order, const Venue& venue, double fillPrice, double fillQuantity) noexcept
         : orderId_(order.getId()),
           venue_(venue.getName()),
           fillPrice_(fillPrice),
@@ -15,12 +15,12 @@ public:
           side_(order.getSide()),
           timestamp_(std::chrono::high_resolution_clock::now()) {}
 
-    uint64_t getOrderId() const noexcept { return orderId_; }
-    const std::string& getVenue() const noexcept { return venue_; }
-    double getFillPrice() const noexcept { return fillPrice_; }
-    double getFillQuantity() const noexcept { return fillQuantity_; }
-    OrderSide getSide() const noexcept { return side_; }
-    std::chrono::high_resolution_clock::time_point getTimestamp() const noexcept { return timestamp_; }
+    [[nodiscard]] inline uint64_t getOrderId() const noexcept { return orderId_; }
+    [[nodiscard]] inline const std::string& getVenue() const noexcept { return venue_; }
+    [[nodiscard]] inline double getFillPrice() const noexcept { return fillPrice_; }
+    [[nodiscard]] inline double getFillQuantity() const noexcept { return fillQuantity_; }
+    [[nodiscard]] inline OrderSide getSide() const noexcept { return side_; }
+    [[nodiscard]] inline std::chrono::high_resolution_clock::time_point getTimestamp() const noexcept { return timestamp_; }
 
 private:
     const uint64_t orderId_;
