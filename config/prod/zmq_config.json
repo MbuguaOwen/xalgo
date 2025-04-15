@@ -1,0 +1,9 @@
+{
+    "pub_endpoint": "tcp://*:5555",
+    "sub_endpoint": "tcp://localhost:5555",
+    "socket_options": {
+      "linger": 0,
+      "rcvtimeo": 1000
+    }
+  }
+  

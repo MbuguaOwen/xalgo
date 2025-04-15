@@ -371,6 +371,17 @@ class InternalSimulator:
         Register a custom scenario with the simulator.
         """
         self.scenario_designer.register_scenario(name, simulation_function)
+    def register_dynamic_scenario(self, name: str, trigger_function: Callable[[Dict[str, Any]], bool],
+                                  simulation_function: Callable[[Dict[str, Any]], Dict[str, Any]]):
+        """
+        Register a dynamic simulation scenario with trigger condition.
+
+        Args:
+            name: Name of the dynamic scenario.
+            trigger_function: Function that evaluates if the scenario should trigger.
+            simulation_function: Function that transforms market data when trigger is true.
+        """
+        self.scenario_designer.register_dynamic_scenario(name, trigger_function, simulation_function)
     
     def run_simulation(self, scenario: str = None):
         """
@@ -421,3 +432,17 @@ if __name__ == "__main__":
     
     # Run simulation with the custom scenario applied
     simulator.run_simulation(scenario="liquidity_shock")
+    
+     # Register a dynamic scenario that triggers when ask prices exceed a threshold.
+    def high_ask_trigger(data: Dict[str, Any]) -> bool:
+        asks = data.get("asks", [])
+        return any(ask > 103 for ask in asks)
+    
+    def adjust_for_high_asks(data: Dict[str, Any]) -> Dict[str, Any]:
+        # Example: Slightly shift ask prices downward to simulate market correction.
+        data["asks"] = [ask * 0.98 for ask in data.get("asks", [])]
+        return data
+    simulator.register_dynamic_scenario("high_ask_correction", high_ask_trigger, adjust_for_high_asks)
+    
+    # Run simulation with a static scenario applied, plus dynamic scenario evaluation.
+    simulator.run_simulation(static_scenario="liquidity_shock")
