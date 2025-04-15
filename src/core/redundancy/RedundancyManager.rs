@@ -117,3 +117,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
+
+mod multi_broker_api;
+mod failover_orchestrator;
+mod connection_pool;
+mod heartbeat_monitor;
+mod circuit_breaker;
+
+use multi_broker_api::MultiBrokerAPIManager;
+use failover_orchestrator::FailoverOrchestrator;
+// ... etc.

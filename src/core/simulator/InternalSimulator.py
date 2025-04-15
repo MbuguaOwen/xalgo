@@ -11,6 +11,16 @@ import threading
 from collections import deque
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional
+import logging
+from typing import List, Dict, Any
+
+from market_replay_engine import MarketReplayEngine
+from synthetic_order_book import SyntheticOrderBook
+from latency_emulator import LatencyEmulator
+from scenario_designer import ScenarioDesigner
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 
 ###############################################################################
@@ -337,3 +347,77 @@ if __name__ == "__main__":
     except Exception as e:
         # Comprehensive error handling at the top level
         print(f"Critical error in simulation: {e}")
+
+class InternalSimulator:
+    """
+    Central simulation orchestrator that integrates:
+      - Market replay engine (historical data playback)
+      - Synthetic order book generator (simulate order book updates)
+      - Latency emulator (simulate processing/network delays)
+      - Custom scenario designer (apply user-defined simulation scenarios)
+      
+    Provides a unified API to run simulation cycles.
+    """
+    
+    def __init__(self, market_data: List[Dict[str, Any]]):
+        self.market_replay_engine = MarketReplayEngine(market_data)
+        self.order_book = SyntheticOrderBook()
+        self.latency_emulator = LatencyEmulator()
+        self.scenario_designer = ScenarioDesigner()
+        logger.info("Internal Simulator initialized.")
+    
+    def register_scenario(self, name: str, simulation_function):
+        """
+        Register a custom scenario with the simulator.
+        """
+        self.scenario_designer.register_scenario(name, simulation_function)
+    
+    def run_simulation(self, scenario: str = None):
+        """
+        Run a single simulation cycle:
+          - Replay market data
+          - Optionally apply a custom scenario to the market data
+          - Update the synthetic order book
+          - Emulate processing latency
+          
+        Args:
+            scenario: Name of the registered scenario to apply.
+        """
+        logger.info("Starting simulation cycle.")
+        for market_data in self.market_replay_engine.replay():
+            # Optionally modify the data via a custom scenario.
+            if scenario:
+                market_data = self.scenario_designer.apply_scenario(scenario, market_data)
+            
+            # Update the synthetic order book.
+            self.order_book.update(market_data)
+            
+            # Emulate system latency.
+            self.latency_emulator.emulate_latency()
+            
+            # For demonstration, we log the current order book state.
+            current_state = self.order_book.get_order_book()
+            logger.info("Current Order Book State: %s", current_state)
+        
+        logger.info("Simulation cycle completed.")
+
+# Example usage for testing:
+if __name__ == "__main__":
+    # Sample historical market data
+    sample_data = [
+        {"timestamp": 1.0, "bids": [100, 99], "asks": [101, 102]},
+        {"timestamp": 2.0, "bids": [101, 100], "asks": [102, 103]},
+        {"timestamp": 3.0, "bids": [102, 101], "asks": [103, 104]}
+    ]
+    
+    simulator = InternalSimulator(sample_data)
+    
+    # Register a custom scenario (e.g., a liquidity shock that drops bids)
+    def liquidity_shock(data: Dict[str, Any]) -> Dict[str, Any]:
+        data["bids"] = [bid * 0.9 for bid in data.get("bids", [])]
+        return data
+    
+    simulator.register_scenario("liquidity_shock", liquidity_shock)
+    
+    # Run simulation with the custom scenario applied
+    simulator.run_simulation(scenario="liquidity_shock")
