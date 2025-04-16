@@ -143,3 +143,5 @@ message(STATUS "Main: ${MAIN_SRC}")
 message(STATUS "Tests: ${TEST_SRC}")
 message(STATUS "Using Eigen from: ${CMAKE_CURRENT_SOURCE_DIR}/third_party/eigen")
 target_include_directories(TriangularArbitrageCpp PRIVATE ${CMAKE_SOURCE_DIR}/third_party/eigen)
+target_include_directories(xalgo_main PRIVATE ${CMAKE_SOURCE_DIR}/include)
+

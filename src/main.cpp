@@ -50,7 +50,7 @@
 #include "core/interfaces/ICircuitBreaker.hpp"
 
 // =====================[ External Libraries ]===================== //
-#include "Eigen/Dense"
+#include <Eigen/Dense> // For Johansen test and matrix operations
 
 
 namespace TradingSystem {
