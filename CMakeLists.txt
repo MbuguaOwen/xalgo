@@ -49,4 +49,3 @@ add_executable(arbitrage
     src/main.cpp
     src/ExecutionManager.cpp
 )
-include_directories(${PROJECT_SOURCE_DIR}/include)
