@@ -116,6 +116,7 @@ private:
     }
 };
 
+
 int main() {
     // Construct trade legs. In production, these values would be dynamically determined.
     TradeLeg leg1("EUR/USD", 1.1234, 1000000, "buy");
@@ -140,3 +141,90 @@ int main() {
 
     return EXIT_SUCCESS;
 }
+
+#include "TradeLeg.hpp"
+#include <array>
+#include <atomic>
+#include <iostream>
+#include <stdexcept>
+#include <thread>
+#include <chrono>
+
+enum class TradeState : uint8_t {
+    INIT,
+    LEG1_SENT,
+    LEG2_SENT,
+    LEG3_SENT,
+    COMPLETE,
+    ERROR
+};
+
+class ExecutionManager {
+public:
+    ExecutionManager() : state_(TradeState::INIT) {}
+
+    ExecutionManager(const ExecutionManager&) = delete;
+    ExecutionManager& operator=(const ExecutionManager&) = delete;
+
+    void setLegs(const TradeLeg& leg1, const TradeLeg& leg2, const TradeLeg& leg3) {
+        legs_[0] = leg1;
+        legs_[1] = leg2;
+        legs_[2] = leg3;
+    }
+
+    void execute() noexcept {
+        try {
+            updateState(TradeState::LEG1_SENT);
+            sendLeg(legs_[0]);
+
+            updateState(TradeState::LEG2_SENT);
+            sendLeg(legs_[1]);
+
+            updateState(TradeState::LEG3_SENT);
+            sendLeg(legs_[2]);
+
+            updateState(TradeState::COMPLETE);
+            std::cout << "Triangular arbitrage complete." << std::endl;
+        }
+        catch (const std::exception& ex) {
+            updateState(TradeState::ERROR);
+            std::cerr << "Execution error: " << ex.what() << std::endl;
+        }
+        catch (...) {
+            updateState(TradeState::ERROR);
+            std::cerr << "Unknown execution error." << std::endl;
+        }
+    }
+
+    TradeState getState() const noexcept {
+        return state_.load(std::memory_order_acquire);
+    }
+
+private:
+    std::array<TradeLeg, 3> legs_;
+    std::atomic<TradeState> state_;
+
+    void updateState(TradeState newState) noexcept {
+        state_.store(newState, std::memory_order_release);
+    }
+
+    inline void sendLeg(const TradeLeg& leg) {
+        auto start = std::chrono::steady_clock::now();
+        std::this_thread::sleep_for(std::chrono::microseconds(10));
+
+        if (leg.quantity <= 0.0 || leg.price <= 0.0) {
+            throw std::runtime_error("Invalid trade leg parameters");
+        }
+
+        auto end = std::chrono::steady_clock::now();
+        auto execTime = std::chrono::duration<double, std::micro>(end - start);
+
+        if (execTime.count() > 100.0) {
+            std::cerr << "Warning: Leg execution latency " << execTime.count() << "μs exceeds threshold." << std::endl;
+        }
+
+        std::cout << "Executed " << leg.side << " on " << leg.symbol
+                  << " at " << leg.price << " for " << leg.quantity
+                  << " (Latency: " << execTime.count() << "μs)" << std::endl;
+    }
+};

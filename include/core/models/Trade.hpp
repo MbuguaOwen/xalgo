@@ -30,3 +30,17 @@ private:
     const OrderSide side_;
     const std::chrono::high_resolution_clock::time_point timestamp_;
 };
+
+#pragma once
+
+#include <string>
+
+struct TradeLeg {
+    std::string symbol;
+    double price;
+    double quantity;
+    std::string side; // "buy" or "sell"
+
+    TradeLeg(const std::string& sym = "", double p = 0.0, double qty = 0.0, const std::string& s = "")
+        : symbol(sym), price(p), quantity(qty), side(s) {}
+};

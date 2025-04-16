@@ -36,3 +36,16 @@ endif()
 
 # Set installation target for easy deployment.
 install(TARGETS TriangularArbitrageCpp RUNTIME DESTINATION bin)
+
+cmake_minimum_required(VERSION 3.12)
+project(TriangularArbitrage)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_FLAGS "-O3 -march=native -Wall -Wextra")
+
+include_directories(include)
+
+add_executable(arbitrage
+    src/main.cpp
+    src/ExecutionManager.cpp
+)
