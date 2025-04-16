@@ -50,7 +50,8 @@
 #include "core/interfaces/ICircuitBreaker.hpp"
 
 // =====================[ External Libraries ]===================== //
-#include <Eigen/Dense>
+#include "Eigen/Dense"
+
 
 namespace TradingSystem {
     // Simulated stub; real version would be injected or fully implemented.
