@@ -1,4 +1,3 @@
-// SmartOrderRouter.cpp
 #include <iostream>
 #include <vector>
 #include <string>
@@ -24,27 +23,46 @@ struct Venue {
     double reliability;   // reliability factor (closer to 1 is better)
     std::atomic<bool> available;
 
+    // Constructor
     Venue(const std::string& n, double l, double r)
         : name(n), latency(l), reliability(r), available(true) {}
+
+    // Delete copy constructor and assignment (because of std::atomic)
+    Venue(const Venue&) = delete;
+    Venue& operator=(const Venue&) = delete;
+
+    // Allow move semantics
+    Venue(Venue&& other) noexcept
+        : name(std::move(other.name)),
+          latency(other.latency),
+          reliability(other.reliability),
+          available(other.available.load()) {}
+
+    Venue& operator=(Venue&& other) noexcept {
+        if (this != &other) {
+            name = std::move(other.name);
+            latency = other.latency;
+            reliability = other.reliability;
+            available.store(other.available.load());
+        }
+        return *this;
+    }
 };
 
 // SmartOrderRouter implementation
 class SmartOrderRouter {
 private:
     std::vector<Venue> venues;
-    // Using a mutex only in ranking; order routing is handled concurrently.
     std::mutex venueMutex;
 
-    // Minimal order translation: in production this might convert orders to a venue-specific format.
+    // Order translation logic placeholder
     Order translateOrder(const Order& order) {
-        // Here we simply return a copy. Additional translation logic can be added.
-        return order;
+        return order; // placeholder for actual venue-specific transformation
     }
 
 public:
-    SmartOrderRouter(const std::vector<Venue>& v) : venues(v) {}
+    SmartOrderRouter(std::vector<Venue>&& v) : venues(std::move(v)) {}
 
-    // Rank venues based on (latency/reliability)
     void rankVenues() {
         std::lock_guard<std::mutex> lock(venueMutex);
         std::sort(venues.begin(), venues.end(), [](const Venue& a, const Venue& b) {
@@ -52,32 +70,27 @@ public:
         });
     }
 
-    // Asynchronously send the order to each available venue.
     void sendOrderAsync(const Order& order) {
-        // Prepare a vector for futures with reserved space to minimize dynamic allocations.
         std::vector<std::future<void>> futures;
         futures.reserve(venues.size());
         Order translatedOrder = translateOrder(order);
 
         for (auto& venue : venues) {
-            // Only send to available venues.
             if (!venue.available.load(std::memory_order_acquire))
                 continue;
 
-            // Launch asynchronous tasks using std::async.
-            futures.push_back(std::async(std::launch::async, [&translatedOrder, &venue]() {
+            futures.emplace_back(std::async(std::launch::async, [&translatedOrder, &venue]() {
                 try {
-                    // Simulate minimal network latency.
                     std::this_thread::sleep_for(std::chrono::microseconds(static_cast<int>(venue.latency)));
-                    // In production, this would be a network order submission call.
                     std::cout << "Order for " << translatedOrder.symbol
                               << " routed to venue: " << venue.name << std::endl;
                 } catch (const std::exception& e) {
-                    std::cerr << "Error routing order to venue " << venue.name << ": " << e.what() << std::endl;
+                    std::cerr << "Error routing order to venue " << venue.name
+                              << ": " << e.what() << std::endl;
                 }
             }));
         }
-        // Ensure all asynchronous tasks complete.
+
         for (auto& f : futures) {
             try {
                 f.get();
@@ -87,30 +100,28 @@ public:
         }
     }
 
-    // High-level function to route an order.
     void routeOrder(const Order& order) {
         rankVenues();
         sendOrderAsync(order);
     }
 };
 
+// MAIN
 int main() {
     try {
-        // Define a few venues with simulated latencies (in μs) and reliability factors.
-        std::vector<Venue> venues = {
-            Venue("VenueA", 50.0, 0.99),
-            Venue("VenueB", 30.0, 0.97),
-            Venue("VenueC", 70.0, 0.995)
-        };
+        std::vector<Venue> venues;
+        venues.emplace_back("VenueA", 50.0, 0.99);
+        venues.emplace_back("VenueB", 30.0, 0.97);
+        venues.emplace_back("VenueC", 70.0, 0.995);
 
-        SmartOrderRouter router(venues);
-        Order order = {"EUR/USD", 1.1234, 1000000, "buy"};
+        SmartOrderRouter router(std::move(venues));
+        Order order = { "EUR/USD", 1.1234, 1000000, "buy" };
 
-        // Route the order; expect sub-100μs (per venue) plus overhead
         router.routeOrder(order);
     } catch (const std::exception& ex) {
         std::cerr << "Fatal error in SmartOrderRouter: " << ex.what() << std::endl;
         return EXIT_FAILURE;
     }
+
     return EXIT_SUCCESS;
 }

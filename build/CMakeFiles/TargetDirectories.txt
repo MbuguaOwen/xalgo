@@ -1,0 +1,8 @@
+/c/Users/USER/xalgo/build/CMakeFiles/TriangularArbitrageCpp.dir
+/c/Users/USER/xalgo/build/CMakeFiles/arbitrage.dir
+/c/Users/USER/xalgo/build/CMakeFiles/edit_cache.dir
+/c/Users/USER/xalgo/build/CMakeFiles/rebuild_cache.dir
+/c/Users/USER/xalgo/build/CMakeFiles/list_install_components.dir
+/c/Users/USER/xalgo/build/CMakeFiles/install.dir
+/c/Users/USER/xalgo/build/CMakeFiles/install/local.dir
+/c/Users/USER/xalgo/build/CMakeFiles/install/strip.dir
