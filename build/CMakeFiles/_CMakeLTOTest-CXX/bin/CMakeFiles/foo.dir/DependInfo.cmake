@@ -8,7 +8,7 @@ set(CMAKE_DEPENDS_LANGUAGES
   )
 # The set of files for implicit dependencies of each language:
 set(CMAKE_DEPENDS_CHECK_CXX
-  "/c/Users/USER/xalgo/build/CMakeFiles/_CMakeLTOTest-CXX/src/foo.cpp" "/c/Users/USER/xalgo/build/CMakeFiles/_CMakeLTOTest-CXX/bin/CMakeFiles/foo.dir/foo.cpp.o"
+  "C:/Users/USER/xalgo/build/CMakeFiles/_CMakeLTOTest-CXX/src/foo.cpp" "C:/Users/USER/xalgo/build/CMakeFiles/_CMakeLTOTest-CXX/bin/CMakeFiles/foo.dir/foo.cpp.obj"
   )
 set(CMAKE_CXX_COMPILER_ID "GNU")
 
