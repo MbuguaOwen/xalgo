@@ -1,48 +1,91 @@
-#include "ZMQPubSubHandler.hpp"
-#include <iostream>
+#pragma once
+
+#include "core/Logger.hpp"
+#include "core/Metrics.hpp"
+#include "messaging/ZeroMQConnectionManager.hpp"
+#include <zmq.hpp>
+#include <string>
+#include <vector>
 #include <thread>
+#include <atomic>
+#include <mutex>
+#include <functional>
 
-ZMQPubSubHandler::ZMQPubSubHandler(ZeroMQConnectionManager& manager, const std::string& pubEndpoint, const std::string& subEndpoint)
-    : manager_(manager)
-{
-    pubSocket_ = manager_.createSocket(ZMQ_PUB, pubEndpoint, true);
-    subSocket_ = manager_.createSocket(ZMQ_SUB, subEndpoint, false);
-}
+namespace hft {
+namespace core {
+namespace messaging {
 
-ZMQPubSubHandler::~ZMQPubSubHandler() {
-    // Sockets are automatically cleaned up.
-}
+/**
+ * @brief Handler for PUB/SUB messaging over ZeroMQ
+ */
+class ZMQPubSubHandler {
+public:
+    /**
+     * @brief Constructor
+     * 
+     * @param manager   Reference to the ZeroMQ connection manager
+     * @param logger    Logger instance
+     * @param metrics   Metrics collector
+     * @param pubName   Identifier for the publisher socket
+     * @param pubEndpoint   Endpoint for publisher to bind/connect
+     * @param subName   Identifier for the subscriber socket
+     * @param subEndpoint   Endpoint for subscriber to bind/connect
+     * @param topics    Initial list of topics to subscribe to
+     */
+    ZMQPubSubHandler(
+        ZeroMQConnectionManager& manager,
+        std::shared_ptr<Logger> logger,
+        std::shared_ptr<Metrics> metrics,
+        const std::string& pubName,
+        const std::string& pubEndpoint,
+        const std::string& subName,
+        const std::string& subEndpoint,
+        const std::vector<std::string>& topics = {}
+    );
 
-void ZMQPubSubHandler::publish(const std::string& topic, const std::string& message) {
-    zmq::message_t topicMsg(topic.begin(), topic.end());
-    zmq::message_t messageMsg(message.begin(), message.end());
-    pubSocket_->send(topicMsg, zmq::send_flags::sndmore);
-    pubSocket_->send(messageMsg, zmq::send_flags::none);
-}
+    ~ZMQPubSubHandler();
 
-void ZMQPubSubHandler::subscribe(const std::string& topic) {
-    subSocket_->set(zmq::sockopt::subscribe, topic);
-}
+    /**
+     * @brief Publish a message under a topic
+     */
+    void publish(const std::string& topic, const std::string& message);
 
-void ZMQPubSubHandler::setMessageHandler(std::function<void(const std::string&, const std::string&)> handler) {
-    messageHandler_ = handler;
-}
+    /**
+     * @brief Subscribe to a new topic at runtime
+     */
+    void subscribe(const std::string& topic);
 
-void ZMQPubSubHandler::startListening() {
-    std::thread listener([this]() {
-        while (true) {
-            zmq::message_t topicMsg;
-            zmq::message_t messageMsg;
-            subSocket_->recv(topicMsg);
-            subSocket_->recv(messageMsg);
-            std::string topic(static_cast<char*>(topicMsg.data()), topicMsg.size());
-            std::string message(static_cast<char*>(messageMsg.data()), messageMsg.size());
-            if (messageHandler_) {
-                messageHandler_(topic, message);
-            } else {
-                std::cout << "Received on topic [" << topic << "]: " << message << std::endl;
-            }
-        }
-    });
-    listener.detach();
-}
+    /**
+     * @brief Set the callback for incoming messages
+     */
+    void setMessageHandler(std::function<void(const std::string&, const std::string&)> handler);
+
+    /**
+     * @brief Start background listener thread
+     */
+    void start();
+
+    /**
+     * @brief Stop background listener thread
+     */
+    void stop();
+
+private:
+    void listenLoop();
+
+    ZeroMQConnectionManager&                   manager_;
+    std::shared_ptr<Logger>                   logger_;
+    std::shared_ptr<Metrics>                  metrics_;
+    std::shared_ptr<zmq::socket_t>            pubSocket_;
+    std::shared_ptr<zmq::socket_t>            subSocket_;
+    ConnectionHealth&                         pubHealth_;
+    ConnectionHealth&                         subHealth_;
+    std::atomic<bool>                         running_{false};
+    std::thread                               listenThread_;
+    std::mutex                                handlerMutex_;
+    std::function<void(const std::string&, const std::string&)> messageHandler_;
+};
+
+} // namespace messaging
+} // namespace core
+} // namespace hft

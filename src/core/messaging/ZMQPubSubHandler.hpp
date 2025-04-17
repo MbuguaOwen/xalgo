@@ -1,58 +1,91 @@
-#ifndef ZMQ_PUBSUB_HANDLER_HPP
-#define ZMQ_PUBSUB_HANDLER_HPP
+#pragma once
 
-#include "ZeroMQConnectionManager.hpp"
+#include "core/Logger.hpp"
+#include "core/Metrics.hpp"
+#include "messaging/ZeroMQConnectionManager.hpp"
 #include <zmq.hpp>
 #include <string>
+#include <vector>
+#include <thread>
+#include <atomic>
+#include <mutex>
 #include <functional>
 
+namespace hft {
+namespace core {
+namespace messaging {
+
 /**
- * @brief Provides a basic publisher/subscriber interface using ZeroMQ.
+ * @brief Handler for PUB/SUB messaging over ZeroMQ
  */
 class ZMQPubSubHandler {
 public:
     /**
-     * @brief Constructor that sets up publishing and subscribing endpoints.
-     * @param manager Reference to an existing ZeroMQConnectionManager.
-     * @param pubEndpoint The endpoint for publishing messages.
-     * @param subEndpoint The endpoint for subscribing to messages.
+     * @brief Constructor
+     * 
+     * @param manager   Reference to the ZeroMQ connection manager
+     * @param logger    Logger instance
+     * @param metrics   Metrics collector
+     * @param pubName   Identifier for the publisher socket
+     * @param pubEndpoint   Endpoint for publisher to bind/connect
+     * @param subName   Identifier for the subscriber socket
+     * @param subEndpoint   Endpoint for subscriber to bind/connect
+     * @param topics    Initial list of topics to subscribe to
      */
-    ZMQPubSubHandler(ZeroMQConnectionManager& manager, const std::string& pubEndpoint, const std::string& subEndpoint);
-    
-    /**
-     * @brief Destructor.
-     */
+    ZMQPubSubHandler(
+        ZeroMQConnectionManager& manager,
+        std::shared_ptr<Logger> logger,
+        std::shared_ptr<Metrics> metrics,
+        const std::string& pubName,
+        const std::string& pubEndpoint,
+        const std::string& subName,
+        const std::string& subEndpoint,
+        const std::vector<std::string>& topics = {}
+    );
+
     ~ZMQPubSubHandler();
 
     /**
-     * @brief Publish a message on a given topic.
-     * @param topic The topic to publish.
-     * @param message The message content.
+     * @brief Publish a message under a topic
      */
     void publish(const std::string& topic, const std::string& message);
 
     /**
-     * @brief Subscribe to a topic.
-     * @param topic The topic to subscribe to.
+     * @brief Subscribe to a new topic at runtime
      */
     void subscribe(const std::string& topic);
 
     /**
-     * @brief Set a callback function to handle received messages.
-     * @param handler A function taking the topic and message.
+     * @brief Set the callback for incoming messages
      */
     void setMessageHandler(std::function<void(const std::string&, const std::string&)> handler);
 
     /**
-     * @brief Start the subscriber loop in a separate thread.
+     * @brief Start background listener thread
      */
-    void startListening();
+    void start();
+
+    /**
+     * @brief Stop background listener thread
+     */
+    void stop();
 
 private:
-    ZeroMQConnectionManager& manager_;
-    std::unique_ptr<zmq::socket_t> pubSocket_;
-    std::unique_ptr<zmq::socket_t> subSocket_;
+    void listenLoop();
+
+    ZeroMQConnectionManager&                   manager_;
+    std::shared_ptr<Logger>                   logger_;
+    std::shared_ptr<Metrics>                  metrics_;
+    std::shared_ptr<zmq::socket_t>            pubSocket_;
+    std::shared_ptr<zmq::socket_t>            subSocket_;
+    ConnectionHealth&                         pubHealth_;
+    ConnectionHealth&                         subHealth_;
+    std::atomic<bool>                         running_{false};
+    std::thread                               listenThread_;
+    std::mutex                                handlerMutex_;
     std::function<void(const std::string&, const std::string&)> messageHandler_;
 };
 
-#endif  // ZMQ_PUBSUB_HANDLER_HPP
+} // namespace messaging
+} // namespace core
+} // namespace hft
